@@ -36,10 +36,10 @@ profile_uri = 'https://www.googleapis.com/oauth2/v1/userinfo'
 
 @app.route('/')
 def index():
-    if 'email' not in session:
-        return redirect(url_for('login'))
+    #if 'email' not in session:
+    #    return redirect(url_for('login'))
 
-    else:
+    #else:
         try:
             connection = engine.connect()
             subjects = connection.execute("SELECT DISTINCT subject_name, image_link FROM Subjects ORDER BY subject_name ASC")
@@ -52,25 +52,83 @@ def index():
 
         subjects1, subjects2 = itertools.tee(subjects)
 
-        print(session['email'], file=sys.stderr)
+        #print(session['email'], file=sys.stderr)
 
-        return render_template("index.html", subjects1=subjects1, subjects2=subjects2, profilePicture=session['picture'],
-        userRole=session['role'], userForename=session['given_name'], userSurname=session['family_name'], userEmail=session['email'])
+        return render_template("index.html", subjects1=subjects1, subjects2=subjects2)
 
-# GET INFO FROM SQL DATABASE
-@app.route('/getSubjectInfo', methods=["POST"])
-def getSubjectInfo():
+        #return render_template("index.html", subjects1=subjects1, subjects2=subjects2, profilePicture=session['picture'],
+        #userRole=session['role'], userForename=session['given_name'], userSurname=session['family_name'], userEmail=session['email'])
+
+@app.route('/g', methods=["POST"])
+def getSubjects():
     if request.method == "POST":
-        subjectSelected = request.form["subject"]
         try:
             connection = engine.connect()
-            subjectInfo = connection.execute("SELECT DISTINCT Subjects.qualification_level, Topics.topic_name, Topics.topic_desc FROM Subjects INNER JOIN Topics on Subjects.subject_id=Topics.subject_id WHERE Subjects.subject_name='" + subjectSelected + "' ORDER BY qualification_level ASC")
+            subjects = connection.execute("SELECT DISTINCT subject_name FROM Subjects ORDER BY subject_name ASC")
             connection.close()
 
         except Exception as e:
             return str(e)
 
-    return json.dumps([dict(qualificationTopic) for qualificationTopic in subjectInfo])
+    return json.dumps([dict(subject) for subject in subjects])
+
+@app.route('/getQualificationForSubject', methods=["POST"])
+def getQualificationForSubject():
+    if request.method == "POST":
+        subjectName = request.form["subjectName"]
+        try:
+            connection = engine.connect()
+            qualificationForSubject = connection.execute("SELECT DISTINCT Subjects.qualification_level FROM Subjects INNER JOIN Topics on Subjects.subject_id=Topics.subject_id WHERE Subjects.subject_name='" + subjectName + "' ORDER BY qualification_level ASC")
+            connection.close()
+
+        except Exception as e:
+            return str(e)
+
+    return json.dumps([dict(qualification) for qualification in qualificationForSubject])
+
+@app.route('/getTopicsForSubjectQualification', methods=["POST"])
+def getTopicsForSubjectQualification():
+    if request.method == "POST":
+        subjectName = request.form["subjectName"]
+        qualificationLevel = request.form["qualificationLevel"]
+
+        try:
+            connection = engine.connect()
+            topicsForSubjectQualification = connection.execute("SELECT Topics.topic_name, Topics.topic_desc FROM Subjects INNER JOIN Topics on Subjects.subject_id=Topics.subject_id WHERE Subjects.subject_name='" + subjectName + "' AND Subjects.qualification_level='" + qualificationLevel + "'")
+            connection.close()
+
+        except Exception as e:
+            return str(e)
+
+    return json.dumps([dict(topics) for topics in topicsForSubjectQualification])
+
+# GET INFO FROM SQL DATABASE
+@app.route('/getSubjectsQualificationsTopics', methods=["POST"])
+def getSubjectsQualificationsTopics():
+    if request.method == "POST":
+        try:
+            connection = engine.connect()
+            subjectQualificationTopics = connection.execute("SELECT Subjects.qualification_level, Subjects.subject_name, Topics.topic_name FROM Subjects INNER JOIN Topics on Subjects.subject_id=Topics.subject_id ORDER BY subject_name ASC")
+            connection.close()
+
+        except Exception as e:
+            return str(e)
+
+    return json.dumps([dict(subjectQualificationTopic) for subjectQualificationTopic in subjectQualificationTopics])
+
+# GET INFO FROM SQL DATABASE
+@app.route('/getSubjectInfo', methods=["POST"])
+def getSubjectInfo():
+    if request.method == "POST":
+        try:
+            connection = engine.connect()
+            subjectInfo = connection.execute("SELECT Subjects.subject_name, Subjects.qualification_level, Topics.topic_name, Topics.topic_desc FROM Subjects INNER JOIN Topics on Subjects.subject_id=Topics.subject_id ORDER BY subject_name ASC")
+            connection.close()
+
+        except Exception as e:
+            return str(e)
+
+    return json.dumps([dict(subjectQualificationTopic) for subjectQualificationTopic in subjectInfo])
 
 @app.route('/getSubjectTopicLeaderboard', methods=["POST"])
 def getSubjectTopicLeaderboard():

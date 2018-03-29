@@ -7,10 +7,16 @@ $( document ).ready(function() {
 
 
     // GLOBAL VARIABLES
-    var subjectSelected;
-    var qualificationLevelSelected;
-    var topicSelected;
+    //var subjectSelected;
+    //var qualificationLevelSelected;
+    //var topicSelected;
 
+    //var subjectSelectedObj;
+    //var subjectQualificationTopicSelected;
+    //var SUBJECT_QUALIFICATION_TOPIC_OBJS = [];
+    //var SUBJECT_QUALIFICATION_TOPIC_SELECTED_OBJ;
+
+    var subjectSelected;
     var SUBJECT_INFO = [];    // An array of information about subjects
                               // INFO: subject name, a topics including a descripton of it
 
@@ -19,9 +25,11 @@ $( document ).ready(function() {
 
     $("#revisionTabs").hide();
     $("#TeacherAreaTabs").hide();
+    $("#backToFilterBtn").hide();
     //$("#quizAnswerModal").hide();
 
     filterUI();
+    getSubjectInfo();
 
     function filterUI() {
         if ($("#userRole").text() == "Student") {
@@ -63,39 +71,56 @@ $( document ).ready(function() {
         $('input[name="contactUsEmail"]').prop('disabled', true);
     }
 
-    // Populate Qualification and Topics
+    function getSubjectInfo() {
+        $.post("/getSubjectInfo").done(function( data ) {
+            var jsonData = JSON.parse(data);
+            var currentSubject = jsonData[0].subject_name;
+            var currentQualification = jsonData[0].qualification_level;
 
-    // SUBJECT SELECTED
+            var topics = [];
+            for (var i = 1; i < jsonData.length; i++) {
+                if (currentSubject != jsonData[i].subject_name || currentQualification != jsonData[i].qualification_level) {
+                    currentSubject = jsonData[i].subject_name;
+                    currentQualification = jsonData[i].qualification_level;
+                    SUBJECT_INFO.push(new Subject(jsonData[i - 1].subject_name, jsonData[i - 1].qualification_level, topics));
+                    topics = []; // clear array
+                } else {
+                    topics.push(new Topic(jsonData[i].topic_name, jsonData[i].topic_desc));
+                }
+
+                // For the last subject/qualification
+                if (i == jsonData.length - 1) {
+                    SUBJECT_INFO.push(new Subject(jsonData[i].subject_name, jsonData[i].qualification_level, topics));
+                }
+            }
+        });
+    }
+
     $('#subjectList li').unbind().click(function() {
-        subjectSelected = $(this).text();
-        document.getElementById("subjectNameModalHeader").innerHTML = subjectSelected; // set modal header
-
-        // Clear dropdown menus, then get info
-        document.getElementById('topicsList').options.length = 0;
-        document.getElementById('teacherTopicsDropdownList').options.length = 0;
-        document.getElementById('qualificationList').options.length = 0;
-        document.getElementById('teacherQualificationDropdownList').options.length = 0;
-
-        document.getElementById('teacherRevisionTopicsDropdownList').options.length = 0;
-        document.getElementById('teacherRevisionQualificationDropdownList').options.length = 0;
-
-        getSubjectInfo();
-
-        // Go back to filters, in case modal was open previously to another subject
-        $("#filterSubject").show();
-        $("#filterSubjectButtons").show();
-        $("#revisionTabs").hide();
-        $("#startQuizBtn").hide();
-
-        $("#backToFilterBtn").hide();
-        $("#updateFilterBtn").show();
+        clearSubjectModal($(this).text());
+        //populateQualificationDropdown(subjectSelectedObj);
     });
 
     $('[id^=revisionButton]').unbind().click(function() {
         var currentId = this.id;
         var subjectBoxId = currentId.replace("revisionButton", "subjectBox");
-        subjectSelected = $("#" + subjectBoxId).text();
-        document.getElementById("subjectNameModalHeader").innerHTML = subjectSelected; // set modal header
+        clearSubjectModal($("#" + subjectBoxId).text());
+        //populateQualificationDropdown(subjectSelectedObj);
+    });
+/*
+    function getSubjectObj(subjectName) {
+        var subjectSelectedObj;
+        for (var i = 0; i < SUBJECT_INFO.length; i++) {
+            if (SUBJECT_INFO[i].subjectName == subjectName) {
+                subjectSelectedObj = SUBJECT_INFO[i];
+            }
+        }
+
+        return subjectSelectedObj;
+    }*/
+
+    function clearSubjectModal (subjectName) {
+        document.getElementById("subjectNameModalHeader").innerHTML = subjectName; // set modal header
 
         // Clear dropdown menus, then get info
         document.getElementById('topicsList').options.length = 0;
@@ -106,8 +131,6 @@ $( document ).ready(function() {
         document.getElementById('teacherRevisionTopicsDropdownList').options.length = 0;
         document.getElementById('teacherRevisionQualificationDropdownList').options.length = 0;
 
-        getSubjectInfo();
-
         $("#filterSubject").show();
         $("#filterSubjectButtons").show();
         $("#revisionTabs").hide();
@@ -115,25 +138,120 @@ $( document ).ready(function() {
 
         $("#startQuizBtn").hide();
         $("#updateFilterBtn").show();
-    });
+    }
+
+    function populateQualificationDropdown(subjectSelected) {
+        var qualificationObj;
+        for (var i = 0; i < subjectSelected.qualifications.length; i++) {
+            $('#qualificationList').append("<option>" + subjectSelected.qualifications[i].qualificationName + "</option>");
+        }
+        $('#qualificationList').change();
+    }
+
+    function populateTopicsDropdown(subjectSelectedText, qualificationSelectedText) {
+        for (var i = 0; i < SUBJECT_QUALIFICATION_TOPIC_OBJS.length; i++) {
+            if (SUBJECT_QUALIFICATION_TOPIC_OBJS[i].subjectName == subjectSelectedText) {
+                for (var i = 0; i < SUBJECT_QUALIFICATION_TOPIC_OBJS[i].qualifications.length; i++) {
+                    if (SUBJECT_QUALIFICATION_TOPIC_OBJS[i].qualifications[i].qualificationName == qualificationSelectedText) {
+                        $.each(SUBJECT_QUALIFICATION_TOPIC_OBJS[i].qualifications[i].topics, function(key, value) {
+                            $('#topicsList').append("<option>" + value.topicName + "</option>");
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    function getSubjectQualificationTopicObj(subjectText, qualificationText, topicText) {
+        var subjectSelectedObj;
+        var qualificationObj;
+        var topicObj;
+
+        for (var i = 0; i < SUBJECT_QUALIFICATION_TOPIC_OBJS.length; i++) {
+            if (SUBJECT_QUALIFICATION_TOPIC_OBJS[i].subjectName == subjectText) {
+                subjectSelectedObj = SUBJECT_QUALIFICATION_TOPIC_OBJS[i].getSubject();
+            }
+        }
+
+        for (var i = 0; i < subjectSelectedObj.qualifications.length; i++) {
+            if (subjectSelectedObj.qualifications[i].qualificationName == qualificationText) {
+                qualificationObj = subjectSelectedObj.qualifications[i].getQualification();
+            }
+        }
+
+        SUBJECT_QUALIFICATION_TOPIC_SELECTED_OBJ = subjectSelectedObj;
+
+        delete SUBJECT_QUALIFICATION_TOPIC_SELECTED_OBJ.qualifications;
+        SUBJECT_QUALIFICATION_TOPIC_SELECTED_OBJ.qualification = qualificationObj;
+
+        $.each(subjectSelectedObj.qualification.topics, function(key, value) {
+            if (value.topicName == topicText) {
+                topicObj = value.getTopic();
+            }
+        });
+
+        delete SUBJECT_QUALIFICATION_TOPIC_SELECTED_OBJ.qualification.topics;
+        SUBJECT_QUALIFICATION_TOPIC_SELECTED_OBJ.topic = topicObj;
+    }
 
     $("#qualificationList").unbind().change(function() {
         document.getElementById('topicsList').options.length = 0;
         document.getElementById('teacherTopicsDropdownList').options.length = 0;
-        getSubjectInfo();
+        //populateTopicsDropdown(subjectSelectedObj, $(this).val())
+        populateTopicsDropdown(document.getElementById("subjectNameModalHeader").innerHTML, $(this).val());
     });
 
-    // LOAD SUBJECT INFO
 
-    function getSubjectInfo() {
-        $.post("/getSubjectInfo", {
-            subject: subjectSelected
-    	},
-    	function(data) {
-    	    displaySubjectInfo(data, subjectSelected);
-    	});
-    }
+    $('[id^=resetFilterBtn]').unbind().click(function() {
+        var subjectSelectedObj = getSubjectObj($("#subjectNameModalHeader").text())
+        clearSubjectModal(subjectSelectedObj);
+        populateQualificationDropdown(subjectSelectedObj);
+        $('#qualificationList').change();
+    });
 
+    // Update filter, hide filter and display tabs
+    $('[id^=updateFilterBtn]').unbind().click(function() {
+        // If student...
+        if ($("#subjectModal").hasClass('in')) {
+            getSubjectQualificationTopicObj($("#subjectNameModalHeader").text(), document.getElementById("qualificationList").value, document.getElementById("topicsList").value);
+            getTopicSummary();
+            //getTopicLeaderboard();
+            //getRevisionMaterials();
+
+            $("#filterSubject").hide();
+            $("#filterSubjectButtons").hide();
+            $("#revisionTabs").show();
+
+            $("#updateFilterBtn").hide();
+            $("#resetFilterBtn").hide();
+            $("#backToFilterBtn").show();
+
+            //getQuestionsStudent();
+
+            document.getElementById('subjectSummaryTab').click();
+        }
+
+        // If teacher...
+        else if ($("#teacherModal").hasClass('in')) {
+            if ($("#teacherRevisionManagerTab").parent().hasClass('active')) {
+                subjectSelected = document.getElementById("teacherRevisionSubjectDropdownList").value;
+                qualificationLevelSelected = document.getElementById("teacherRevisionQualificationDropdownList").value;
+                topicSelected = document.getElementById("teacherRevisionTopicsDropdownList").value;
+            } else {
+                subjectSelected = document.getElementById("teacherSubjectDropdownList").value;
+                qualificationLevelSelected = document.getElementById("teacherQualificationDropdownList").value;
+                topicSelected = document.getElementById("teacherTopicsDropdownList").value;
+            }
+
+            $("#teacherFilterSubject").hide();
+            $("#teacherFilterSubjectButtons").hide();
+            $("#teacherAreaTabs").show();
+        }
+
+        $("#startQuizBtn").hide();
+    });
+
+/*
     function displaySubjectInfo(data, subjectSelected) {
         $.each(JSON.parse(data), function(key, value) {
             SUBJECT_INFO.push({
@@ -168,51 +286,7 @@ $( document ).ready(function() {
                 $('#teacherRevisionTopicsDropdownList').append("<option>" + value.topic_name + "</option>");
             }
         });
-    }
-
-    // Update filter, hide filter and display tabs
-    $('[id^=updateFilterBtn]').unbind().click(function() {
-        // If student...
-        if ($("#subjectModal").hasClass('in')) {
-            qualificationLevelSelected = document.getElementById("qualificationList").value;
-	        topicSelected = document.getElementById("topicsList").value;
-
-            getTopicSummary();
-            getTopicLeaderboard();
-            //getRevisionMaterials();
-
-            $("#filterSubject").hide();
-            $("#filterSubjectButtons").hide();
-            $("#revisionTabs").show();
-
-            $("#updateFilterBtn").hide();
-            $("#resetFilterBtn").hide();
-            $("#backToFilterBtn").show();
-
-            getQuestionsStudent();
-
-            document.getElementById('subjectSummaryTab').click();
-        }
-
-        // If teacher...
-        else if ($("#teacherModal").hasClass('in')) {
-            if ($("#teacherRevisionManagerTab").parent().hasClass('active')) {
-                subjectSelected = document.getElementById("teacherRevisionSubjectDropdownList").value;
-                qualificationLevelSelected = document.getElementById("teacherRevisionQualificationDropdownList").value;
-                topicSelected = document.getElementById("teacherRevisionTopicsDropdownList").value;
-            } else {
-                subjectSelected = document.getElementById("teacherSubjectDropdownList").value;
-                qualificationLevelSelected = document.getElementById("teacherQualificationDropdownList").value;
-                topicSelected = document.getElementById("teacherTopicsDropdownList").value;
-            }
-
-            $("#teacherFilterSubject").hide();
-            $("#teacherFilterSubjectButtons").hide();
-            $("#teacherAreaTabs").show();
-        }
-
-        $("#startQuizBtn").hide();
-    });
+    }*/
 
     $('[id^=teacherAreaUpdateFilterBtn]').unbind().click(function() {
             if ($("#teacherRevisionManagerTab").parent().hasClass('active')) {
@@ -248,19 +322,8 @@ $( document ).ready(function() {
         //getSubjectInfo();
     });
 
-    // Reset filters
-    $('[id^=resetFilterBtn]').click(function() {
-        document.getElementById('topicsList').options.length = 0;
-        document.getElementById('qualificationList').options.length = 0;
-
-        subjectSelected = document.getElementById("subjectNameModalHeader").innerHTML;
-        getSubjectInfo();
-
-        $("#startQuizBtn").hide();
-    });
-
     // Back to filters
-    $('[id^=backToFilterBtn]').click(function() {
+    $('[id^=backToFilterBtn]').unbind().click(function() {
         if ($("#subjectModal").hasClass('in')) {
 
             //$('[href=#subjectSummary]').tab('show');
@@ -274,7 +337,22 @@ $( document ).ready(function() {
             $("#backToFilterBtn").hide();
             $("#startQuizBtn").hide();
 
-            document.getElementById('resetFilterBtn').click(); // simulates a reset filter click
+            while (SUBJECT_QUALIFICATION_TOPIC_OBJS.length == 0) {
+                getSubjects();
+                console.log("Are we done?")
+                console.log(subjectSelectedObj)
+                console.log(SUBJECT_QUALIFICATION_TOPIC_OBJS)
+                subjectSelectedObj = getSubjectObj($("#subjectNameModalHeader").text())
+                clearSubjectModal(subjectSelectedObj);
+                populateQualificationDropdown(subjectSelectedObj);
+            }
+
+            //console.log("Are we done?")
+            //console.log(subjectSelectedObj)
+            //console.log(SUBJECT_QUALIFICATION_TOPIC_OBJS)
+            //clearSubjectModal(subjectSelectedObj);
+            //populateQualificationDropdown(subjectSelectedObj);
+            //document.getElementById('resetFilterBtn').click(); // simulates a reset filter click
         }
 
         else if ($("#teacherModal").hasClass('in')) {
@@ -535,11 +613,7 @@ $( document ).ready(function() {
     });
 
     function getTopicSummary() {
-        $.each(SUBJECT_INFO, function(key, value) {
-            if (value.subject_name == subjectSelected && value.qualification_level == qualificationLevelSelected && value.topic_name == topicSelected) {
-                $("#subjectTopicDesc").text(value.topic_desc)
-            }
-        });
+        $("#subjectTopicDesc").text(SUBJECT_QUALIFICATION_TOPIC_SELECTED_OBJ.topic.topicDesc)
     }
 
     function getTopicLeaderboard() {
